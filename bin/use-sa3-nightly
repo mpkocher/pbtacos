@@ -1,0 +1,7 @@
+#!/bin/bash
+# setup.sh creator 0.1.1
+#SMRT Analysis /pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools
+export SMRT_ROOT=/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools
+source /mnt/software/Modules/current/init/bash
+module load gridengine
+export PATH=/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/smrtcmds/bin:/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/current/private/pacbio/pythonpkgs/GenomicConsensus/binwrap:/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/current/private/pacbio/pythonpkgs/pbsmrtpipe/binwrap:/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/current/private/pacbio/pythonpkgs/GenomicConsensus/binwrap:/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/current/private/pacbio/pythonpkgs/pbvalidate/binwrap:/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/current/private/pacbio/pbscala/binwrap:/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/current/bundles/smrttools/current/private/otherbins/thirdpartyall/bin:$PATH
