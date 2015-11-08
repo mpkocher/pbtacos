@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+import os
+import sys
+
+__version__ = '0.1.1'
+
+
+def to_shell(root_dir):
+    outs = ["#!/bin/bash", 
+            "# setup.sh creator {x}".format(x=__version__),
+            "#SMRT Analysis {}".format(root_dir),
+            "export SMRT_ROOT={x}".format(x=root_dir),
+            "source /mnt/software/Modules/current/init/bash",
+            "module load gridengine"
+            ]
+    # Add back pbsmrtpipe tools and python (to create a VE)
+    xs = [
+            "smrtcmds/bin", 
+            "current/private/pacbio/pythonpkgs/GenomicConsensus/binwrap",
+            "current/private/pacbio/pythonpkgs/pbsmrtpipe/binwrap", 
+            "current/private/pacbio/pythonpkgs/GenomicConsensus/binwrap",
+            "current/private/pacbio/pythonpkgs/pbvalidate/binwrap",
+            "current/private/pacbio/pbscala/binwrap",
+            "current/private/otherbins/thirdpartyall/bin"]
+
+    paths = [os.path.join(root_dir, x) for x in xs]
+    for p in paths:
+        if not os.path.exists(p):
+            sys.stderr.write("Unable to find {p}\n".format(p=p))
+
+    path = "export PATH={x}:$PATH".format(x=":".join(paths))
+    outs.append(path)
+    return "\n".join(outs)
+
+
+def main():
+    f = sys.argv[1]
+    root_dir = os.path.abspath(f)
+    print to_shell(root_dir)
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
+
