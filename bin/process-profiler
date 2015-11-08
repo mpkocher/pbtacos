@@ -1,0 +1,417 @@
+#!/usr/bin/env python
+"""This was taken from pysiv1"""
+import csv
+import os
+import sys
+import logging
+import argparse
+import subprocess
+import socket
+import time
+import shlex
+import tempfile
+import datetime
+import threading
+import types
+
+import psutil
+
+__version__ = '0.3.0'
+__author__ = "mkocher"
+
+log = logging.getLogger(__name__)
+
+# Attrs that are pulled from psutil
+_FIELDS = 'pid ppid create_time exe name num_threads status username memory_percent'.split()
+_SUMMABLE_FIELDS = 'memory_percent memory_rss memory_vms cpu_percent'.split()
+_DEFAULT_PLOT_FIELDS = 'cpu_percent memory_rss'.split()
+_DATETIME_FORMAT = "%Y-%m-%d-%H-%M-%S-%f"
+
+
+def _setup_log(alog, level=logging.DEBUG):
+    handler = logging.StreamHandler(sys.stdout)
+    str_formatter = '[%(levelname)s] %(asctime)-15s [%(name)s %(funcName)s %(lineno)d] %(message)s'
+    formatter = logging.Formatter(str_formatter)
+    handler.setFormatter(formatter)
+    handler.setLevel(level)
+    alog.addHandler(handler)
+    alog.setLevel(logging.DEBUG)
+
+
+def _validate_pid_or_command(p):
+    try:
+        x = int(p)
+        # this will raise NoSuchProcess if the pid isn't found
+        p = psutil.Process(pid=x)
+    except TypeError:
+        if isinstance(p, str):
+            x = p
+        else:
+            raise ValueError("Must be int or command")
+
+    return x
+
+
+def get_parser():
+    p = argparse.ArgumentParser(version=__version__,
+                                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    p.add_argument('command', type=_validate_pid_or_command,
+                   help="Process id or Command that will be monitored. e.g, -c \"smrtpipe.py --params=\"workflow.xml\" xml:input.xml")
+    p.add_argument('--debug', action='store_true', help="Turn on debug flag.")
+    p.add_argument('--monitor-time', default=5, type=int,
+                   help="Time in sec between profile snapshots.")
+    p.add_argument('--plot', type=str, default=None,
+                   help="Plot the output.")
+    p.add_argument('--output', type=str, help="Output CSV file.",
+                   default="process_profile.csv")
+    p.add_argument('--with-children', action='store_true', help="Include children processes.")
+    return p
+
+
+def _to_s(dct):
+    """ leech out the relevent attrs and create a CSV"""
+    outs = []
+    for attr in _FIELDS:
+        outs.append(str(dct[attr]))
+    return ",".join(outs)
+
+
+def _tuple_to_dict(t, prefix=None):
+    """Prefix will add a prefix the key name"""
+    d = {}
+    for n in dir(t):
+        if not n.startswith('_'):
+            a = getattr(t, n)
+            # some of the return types are created with namedtuples
+            # this requires some hackary to get extract the necessary
+            # fields
+            if not isinstance(a, types.BuiltinFunctionType):
+                if prefix is None:
+                    d[n] = a
+                else:
+                    d['_'.join([prefix, n])] = a
+
+    return d
+
+
+class MonitorThread(threading.Thread):
+
+    def __init__(self, pid, csv_file_handle, fieldnames, monitor_time=2):
+        self.pid = pid
+        self.csv_file_handle = csv_file_handle
+        self.fieldnames = fieldnames
+        self.monitor_time = monitor_time
+        self.to_shutdown = False
+        threading.Thread.__init__(self)
+
+    def run(self):
+        writer = csv.DictWriter(self.csv_file_handle, fieldnames=self.fieldnames)
+        while not self.to_shutdown:
+            p = psutil.Process(self.pid)
+            if p.is_running():
+                d = monitor_process_id(self.pid)
+                if d is not None:
+                    writer.writerow(d)
+                    self.csv_file_handle.flush()
+            time.sleep(self.monitor_time)
+
+
+def monitor_process_id(pid, interval=1, include_children=False):
+    """Inspect the process and return a dict
+
+    :param pid (int) Process id to monitor
+    :param interval (int) Seconds between taking snapshots
+
+    :returns: dict of stats over a time of t0 + interval
+    """
+    p = psutil.Process(pid=pid)
+
+    # ask for forgiveness model
+    try:
+        raw_d = p.as_dict()
+
+        d = {name: raw_d[name] for name in _FIELDS}
+
+        f = "%Y-%m-%d-%H-%M-%S-%f"
+        started_at = datetime.datetime.fromtimestamp(p.create_time)
+        # this is the snapshot time stamp
+        created_at = datetime.datetime.now()
+        d['created_at'] = created_at.strftime(f)
+
+        d['run_time'] = (created_at - started_at).total_seconds()
+
+        d['cpu_percent'] = p.get_cpu_percent(interval=interval)
+
+        # Number of open files
+        open_files = p.get_open_files()
+        d['num_open_files'] = len(open_files)
+
+        ## This raises an error with the Amount instance on OSX
+        # Number of context switches
+        #num_context_switches = p.get_num_ctx_switches()
+        #num_context_switches_d = _tuple_to_dict(num_context_switches, prefix='num_context_switches')
+        #d.update(num_context_switches_d)
+
+        memory = p.get_memory_info()
+
+        memory_d = _tuple_to_dict(memory, prefix="memory")
+
+        d.update(memory_d)
+
+        ext_memory = p.get_ext_memory_info()
+
+        ext_memory_d = _tuple_to_dict(ext_memory, prefix="ext_memory")
+
+        d.update(ext_memory_d)
+
+        # System stats
+        d['system_cpu_percent'] = psutil.cpu_percent(interval=interval)
+
+        system_virtual_memory = psutil.virtual_memory()
+        system_virtual_memory_d = _tuple_to_dict(system_virtual_memory, 'system_virtual_memory')
+
+        d.update(system_virtual_memory_d)
+
+        swap_memory = psutil.swap_memory()
+
+        system_swap_memory_d = _tuple_to_dict(swap_memory, 'system_swap_memory')
+        d.update(system_swap_memory_d)
+
+        d['status'] = p.status
+
+        if include_children:
+            # Call monitor_process_id on the children of this process and sum
+            # certain values from this child processes
+            children = p.get_children(recursive=False)
+            num_of_children = len(p.get_children(recursive=True))
+            d['num_children'] = num_of_children
+
+            for child in children:
+                child_dict = monitor_process_id(child.pid)
+                if child_dict:
+                    for field in _SUMMABLE_FIELDS:
+                        d[field] += child_dict[field]
+
+        try:
+            # this isn't supported in BSD
+            io_counters = p.get_io_counters()
+            io_counters_d = _tuple_to_dict(io_counters, 'io_counters')
+            d.update(io_counters_d)
+        except AttributeError as e:
+            #log.info("Unable to get_io_counters")
+            pass
+
+    except Exception as e:
+        # Black hole Exception. Don't want to make the main subprocess fail
+        log.error("Unable to get process profile due to {e}".format(e=e))
+        log.error(e)
+        d = None
+
+    return d
+
+
+def run_command(cmd_str, monitor_time=5, output_csv=None):
+    """
+    Returns rcode, stdout, stderr
+
+    Copying this from pysiv.util to keep this script self-contained.
+    """
+
+    f_stdout = tempfile.NamedTemporaryFile(suffix=".stdout", delete=False)
+    f_stderr = tempfile.NamedTemporaryFile(suffix=".stderr", delete=False)
+
+    if output_csv is None:
+        output_csv = os.path.join(os.getcwd(), 'profile.csv')
+
+    args = shlex.split(cmd_str)
+    p = subprocess.Popen(args, stdout=f_stdout, stderr=f_stderr)
+
+    started_at = time.time()
+
+    node_id = socket.getfqdn()
+
+    log.debug("Running on {s} with cmd {c}".format(s=node_id, c=args))
+
+    # monitor csv out
+    monitor_file_name = os.path.join(os.getcwd(), output_csv)
+    monitor_f = open(monitor_file_name, 'w')
+
+    # Setup Monitor and Block
+    p.poll()
+    pid = p.pid
+
+    log.info("Monitoring process {i}".format(i=pid))
+    log.info("writing monitor output to {f}".format(f=monitor_file_name))
+
+    # setup monitoring CSV write/output
+    d = monitor_process_id(pid)
+    log.info(d)
+    fieldnames = sorted(d.keys())
+    writer = csv.DictWriter(monitor_f, fieldnames=fieldnames)
+    writer.writerow({n: n for n in fieldnames})
+    monitor_f.flush()
+
+    monitor_thread = MonitorThread(pid, monitor_f, fieldnames, monitor_time=monitor_time)
+    log.info("Starting monitoring thread {t}".format(t=monitor_thread))
+    monitor_thread.start()
+
+    while p.returncode is None:
+        time.sleep(monitor_time)
+        p.poll()
+
+    monitor_thread.to_shutdown = True
+    time.sleep(monitor_time * 2)
+    log.info("shutting down monitor thread {t}".format(t=monitor_thread))
+    monitor_thread.join()
+
+    # completed collection stats
+    monitor_f.close()
+
+    run_time = time.time() - started_at
+
+    errCode = p.returncode and p.returncode or 0
+
+    f_stdout.seek(0)
+    std_out = f_stdout.read()
+
+    f_stderr.seek(0)
+    std_err = f_stderr.read()
+
+    if p.returncode == 0:
+        log.debug("Successful output (Return code = 0) in {s:.2f} sec ({m:.2f} min) of {c}".format(c=cmd_str, s=run_time, m=run_time / 60.0))
+    else:
+        log.error("Return code {r} {e} of cmd {c}".format(r=p.returncode, e=std_err, c=cmd_str))
+
+    return errCode, std_out, std_err
+
+
+def run_process_monitor(pid, monitor_time=5, output_csv=None):
+    """
+    :param pid: (int)
+    :param monitor_time: (int)
+    :param output_csv (str, None)
+
+    If the Control-C is given, it will be handled gracefully and the
+    monitoring thread will be shutdown.
+    """
+
+    p = psutil.Process(pid=pid)
+
+    if output_csv is None:
+        output_csv = os.path.join(os.getcwd(), 'profile.csv')
+
+    # monitor csv out
+    monitor_file_name = os.path.join(os.getcwd(), output_csv)
+    monitor_f = open(monitor_file_name, 'w')
+
+    log.info("Monitoring process {i}".format(i=pid))
+    log.info("writing monitor output to {f}".format(f=monitor_file_name))
+
+    # setup monitoring CSV write/output
+    d = monitor_process_id(pid)
+    fieldnames = sorted(d.keys())
+    writer = csv.DictWriter(monitor_f, fieldnames=fieldnames)
+    writer.writerow({n: n for n in fieldnames})
+    monitor_f.flush()
+
+    try:
+        monitor_thread = MonitorThread(pid, monitor_f, fieldnames, monitor_time=monitor_time)
+        log.info("Starting monitoring thread {t}".format(t=monitor_thread))
+        monitor_thread.start()
+
+        is_running = psutil.Process(pid=pid).is_running()
+        while is_running:
+            time.sleep(monitor_time)
+            try:
+                is_running = psutil.Process(pid=pid).is_running()
+            except psutil.NoSuchProcess:
+                is_running = False
+
+        monitor_thread.to_shutdown = True
+        time.sleep(monitor_time * 2)
+        log.info("shutting down monitor thread {t}".format(t=monitor_thread))
+        monitor_thread.join()
+
+        # completed collection stats
+        monitor_f.close()
+    except KeyboardInterrupt:
+        monitor_thread.to_shutdown = True
+        monitor_thread.join()
+        monitor_f.close()
+
+
+def _plot_summary_csv(output_csv, plot_file):
+    """Parse and plot output csv"""
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    r = np.recfromcsv(output_csv)
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
+    ax.plot(r.run_time, r.cpu_percent, '-', lw=1, color='b')
+    ax.set_ylabel('cpu (%)', color='r')
+    ax.set_xlabel('time (s)')
+    ax.set_ylim(0., r.cpu_percent.max() * 1.2)
+
+    ax2 = ax.twinx()
+
+    ax2.plot(r.run_time, r.memory_rss, '-', lw=1, color='r')
+    ax2.set_ylim(0., r.memory_rss.max() * 1.2)
+    ax2.set_ylabel('Real Memory (MB)', color='b')
+
+    ax.grid()
+
+    fig.savefig(plot_file)
+
+
+def main():
+    p = get_parser()
+
+    args = p.parse_args()
+    pid_or_command = args.command
+    debug = args.debug
+    monitor_time = args.monitor_time
+    output_csv = args.output
+    plot_file = args.plot
+
+    if debug:
+        _setup_log(log, level=logging.DEBUG)
+    else:
+        log.addHandler(logging.NullHandler())
+
+    # Check if requirements for plotting are avail
+    if plot_file is not None:
+        try:
+            import matplotlib
+        except ImportError:
+            sys.stderr.write("Plotting requires matplotlib. Exiting.")
+            sys.exit(-1)
+
+    log.info("Starting {f} v{v}".format(f=os.path.basename(__file__), v=__version__))
+    if isinstance(pid_or_command, int):
+        # Monitor currently running process
+        run_process_monitor(pid_or_command, monitor_time=monitor_time,
+                            output_csv=output_csv)
+        rcode = 0
+    else:
+        # fork and run process
+        rcode, output, err_message = run_command(pid_or_command,
+                                                 monitor_time=monitor_time,
+                                                 output_csv=output_csv)
+
+        # propagate the exit code, stdout and stderr
+        if rcode != 0:
+            sys.stdout.write(str(output) + "\n")
+            sys.stderr.write(err_message + "\n")
+
+    if plot_file is not None:
+        _plot_summary_csv(output_csv, plot_file)
+        msg = "Wrote plot to {c} from {o}.".format(c=plot_file, o=output_csv)
+        sys.stdout.write(msg + "\n")
+
+    log.info("Exiting {f} v{v}.".format(f=os.path.basename(__file__), v=__version__))
+    return rcode
+
+if __name__ == '__main__':
+    sys.exit(main())

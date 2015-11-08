@@ -1,0 +1,11 @@
+elpy
+pep8
+autopep8
+pylint
+pyflakes
+ipython
+ipdb
+rope
+jedi
+pyzmq
+tornado

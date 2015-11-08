@@ -2,3 +2,4 @@ pbcommand
 requests
 fabric
 networkx
+psutil
