@@ -1,6 +1,6 @@
 import os
 
-from .servers import PortalServer, Server, MilhouseServer
+from .servers import PortalServer, Server, MilhouseServer, SmrtLinkServer
 
 _BUILD_ROOT = os.path.expanduser('~/builds')
 _PYSIV_ROOT = os.path.expanduser('~/dev_pysiv/Pysiv')
@@ -21,3 +21,11 @@ MILHOUSE_PROD = MilhouseServer('milhouse.prod', 'http:/milhouse', 8000, '/mnt/es
 
 _MILHOUSE_SYSTEMS = [MILHOUSE_ALPHA, MILHOUSE_DEV, MILHOUSE_PROD]
 MILHOUSE_SYSTEMS = {s.idx: s for s in _MILHOUSE_SYSTEMS}
+
+SL_BETA = SmrtLinkServer("smrtlink-beta", "http://smrtlink-beta", 8081, "/pbi/dept/secondary/siv/smrtlink/smrtlink-beta/smrtsuite/userdata/jobs_root")
+
+SL_NIGHTLY = SmrtLinkServer("smrtlink-beta", "http://smrtlink-beta", 8081, "/pbi/dept/secondary/siv/smrtlink/smrtlink-nightly/smrtsuite/userdata/jobs_root")
+
+SL_ALPHA = SmrtLinkServer("smrtlink-beta", "http://smrtlink-beta", 8081, "/pbi/dept/secondary/siv/smrtlink/smrtlink-alpha/smrtsuite/userdata/jobs_root")
+
+SL_BIHOURLY = SmrtLinkServer("smrtlink-beta", "http://smrtlink-beta", 8081, "/pbi/dept/secondary/siv/smrtlink/smrtlink-bihourly/smrtsuite/userdata/jobs_root")

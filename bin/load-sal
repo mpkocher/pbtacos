@@ -1,0 +1,110 @@
+#!/usr/bin/env python
+
+from collections import defaultdict
+from pbcommand.services import ServiceAccessLayer as Sal, JobTypes
+
+SALS = {}
+
+
+def register_sal(host, port):
+    s = Sal(host, port)
+    SALS[host] = s
+    return s
+
+s = register_sal("localhost", 8070)
+local_sal = register_sal("localhost", 8070)
+beta_sal = register_sal("smrtlink-beta", 8081)
+alpha_sal = register_sal("smrtlink-alpha", 8081)
+bihourly_sal = register_sal("smrtlink-bihourly", 8081)
+nightly_sal = register_sal("smrtlink-bihourly", 8081)
+
+
+def jobs_summary(jobs):
+    """dict(state) -> count (int) """
+    states_counts = defaultdict(lambda : 0)
+    for job in jobs:
+        state = job['state']
+        states_counts[state] += 1
+
+    return states_counts
+
+
+def to_jobs_summary(jobs, header=None):
+    """Return string of jobs summary"""
+    header = "Jobs" if header is None else header
+
+    outs = []
+    x = outs.append
+    states_counts = jobs_summary(jobs)
+    x("{h} {n}".format(n=len(jobs), h=header))
+    for s, c in states_counts.iteritems():
+        x("State {s} {c}".format(c=c, s=s))
+
+    return "\n".join(outs)
+
+
+def to_all_job_types_summary(sal, sep="*****"):
+
+    # only  use a subset of the job types
+
+    funcs = [(JobTypes.IMPORT_DS, sal.get_import_dataset_jobs),
+             (JobTypes.MERGE_DS, sal.get_merge_dataset_jobs),
+             (JobTypes.CONVERT_FASTA, sal.get_fasta_convert_jobs),
+             (JobTypes.PB_PIPE, sal.get_analysis_jobs)]
+
+    outs = []
+    x = outs.append
+    x("All Job types Summary")
+    x(sep)
+    for name, func in funcs:
+        out = to_jobs_summary(func(), header="{n} Jobs".format(n=name))
+        x(out)
+        x(sep)
+
+    return "\n".join(outs)
+
+
+def to_all_datasets_summary(sal, sep="****"):
+
+    ds_types = [("SubreadSets", sal.get_subreadsets),
+                ("HdfSubreadSets", sal.get_hdfsubreadsets),
+                ("ReferenceSets", sal.get_referencesets),
+                ("AlignmentSets", sal.get_alignmentsets),
+                #("ConsensusSets", sal.get_ccsreadsets)
+                ]
+
+    outs = []
+    x = outs.append
+    x("Dataset Summary")
+    x(sep)
+    for name, func in ds_types:
+        d = func()
+        ndatasets = len(d)
+        x("{n} {d}".format(n=name, d=ndatasets))
+
+    return "\n".join(outs)
+
+
+def get_summary(sal):
+    """:type sal: ServiceAccessLayer"""
+
+    status = sal.get_status()
+    outs = []
+
+    x = outs.append
+
+    sep = "-" * 10
+
+    x(repr(sal))
+    x("Status {s}".format(s=status['message']))
+    x(sep)
+    x(to_all_datasets_summary(sal, sep=sep))
+    x(sep)
+    x(to_all_job_types_summary(sal, sep=sep))
+
+    return "\n".join(outs)
+
+
+from IPython import embed
+
+embed() # this call anywhere in your program will start IPython

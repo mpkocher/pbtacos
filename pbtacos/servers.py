@@ -74,3 +74,13 @@ class MilhouseServer(Server):
 #     return os.path.join(s.root_dir, 'common', 'jobs', b[:3], b)
 #
 
+class SmrtLinkServer(Server):
+    # New post RS era
+    # This has a different root dir interface
+
+    def get_job_path_from_id(self, job_id):
+        b = str(job_id).rjust(6, '0')
+        p = b[:3]
+        # might want to check a job
+        job_path = os.path.join(self.root_dir, p, b)
+        return job_path
