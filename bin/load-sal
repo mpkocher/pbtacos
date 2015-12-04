@@ -85,7 +85,7 @@ def to_all_datasets_summary(sal, sep="****"):
     return "\n".join(outs)
 
 
-def get_summary(sal):
+def to_sal_summary(sal):
     """:type sal: ServiceAccessLayer"""
 
     status = sal.get_status()
