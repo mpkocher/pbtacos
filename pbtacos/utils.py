@@ -4,14 +4,6 @@ import glob
 import os
 
 
-def _setup_log(alog):
-    alog.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    handler.setFormatter(formatter)
-    alog.addHandler(handler)
-
-
 def cellPathFromLimsCode(limsCode):
     globRoot = '/mnt/data*/vol*/%s/%s'
     subVals = tuple(limsCode.split('-'))
