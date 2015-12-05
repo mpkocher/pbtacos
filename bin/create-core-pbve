@@ -1,0 +1,73 @@
+#!/bin/bash
+# Creates a virtualenv on the cluster
+# Authors: MJ, MK
+# this needs some reasonable level of error handling
+
+set -o errexit
+set -o pipefail
+# because of VE #set -o nounset
+
+# Root Perforce SA dir //depot/software/smrtanalysis
+root_sa_dir=~/depot/software/smrtanalysis
+
+
+source /mnt/software/Modules/current/init/bash
+module load python/2.7.9
+module load hdf5-tools/1.8.14
+module load virtualenv/13.0.1
+mkdir -p test-ve
+
+cd test-ve/
+virtualenv -p `which python`  ve
+source ve/bin/activate
+
+git clone https://github.com/PacificBiosciences/pbsmrtpipe.git
+git clone https://github.com/PacificBiosciences/pbcommand.git
+git clone https://github.com/mpkocher/pbtacos.git
+
+# Install these manually here
+pip install Cython
+pip install numpy
+pip install h5py
+
+pip install -r pbcommand/REQUIREMENTS.txt
+pip install pbcommand/
+
+pip install -r $root_sa_dir/bioinformatics/lib/python/pbcore/requirements.txt
+pip install $root_sa_dir/bioinformatics/lib/python/pbcore
+
+pip install -r $root_sa_dir/bioinformatics/tools/pbreports/REQUIREMENTS.txt
+pip install $root_sa_dir/bioinformatics/tools/pbreports
+
+pip install -r $root_sa_dir/bioinformatics/tools/pbreports/REQUIREMENTS.txt
+pip install $root_sa_dir/bioinformatics/tools/pbreports
+
+pip install -r pbsmrtpipe/REQUIREMENTS.txt
+pip install pbsmrtpipe/
+
+pip install -r $root_sa_dir/bioinformatics/staging/pbvalidate/REQUIREMENTS.txt
+pip install $root_sa_dir/bioinformatics/staging/pbvalidate
+
+pip install -r  $root_sa_dir/siv/pysiv2/REQUIREMENTS.txt
+pip install $root_sa_dir/siv/pysiv2
+
+pip install -r  pbtacos/REQUIREMENTS.txt
+pip install pbtacos/
+
+echo "Sanity testing --help"
+pbservice --help
+pbtestkit-runner --help
+pbvalidate --help
+pbsmrtpipe --help
+echo "Completed sanity test"
+
+echo "Creating setup_env.sh"
+# create setup_env.sh
+cat EOF<< > "setup_env.sh"
+source /mnt/software/Modules/current/init/bash
+module load python/2.7.9
+module load gridengine/6.2u5
+# this is for runtime
+module load graphviz/2.28.0
+source test-ve/ve/bin/activate
+EOF

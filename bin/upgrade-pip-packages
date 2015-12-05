@@ -1,0 +1,3 @@
+#!/bin/bash
+# Upgrades all installed python packages
+for i in $(pip freeze | tr "==" " " | awk '{print $1}') ;do pip install --upgrade $i; done
