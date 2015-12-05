@@ -1,7 +1,26 @@
 #!/usr/bin/env python
 
-from collections import defaultdict
-from pbcommand.services import ServiceAccessLayer as Sal, JobTypes
+# The util funcs in here should be pushed somewhere centralized in
+# pbcommand?
+import iso8601
+from collections import defaultdict, namedtuple
+import pprint
+from pbcommand.services import ServiceAccessLayer as Sal, JobTypes, JobStates
+
+ServiceJob = namedtuple("ServiceJob", 'id uuid name state path job_type created_at')
+
+
+def _to_service_job(d):
+    def sx(x):
+        return d[x]
+
+    def se(x):
+        return sx(x).encode('ascii', 'ignore')
+
+    def to_t(x):
+        return iso8601.parse_date(se(x))
+    return ServiceJob(sx('id'), sx('uuid'), se('name'), se('state'),
+                      se('path'), se('jobTypeId'), to_t('createdAt'))
 
 SALS = {}
 
@@ -17,6 +36,24 @@ beta_sal = register_sal("smrtlink-beta", 8081)
 alpha_sal = register_sal("smrtlink-alpha", 8081)
 bihourly_sal = register_sal("smrtlink-bihourly", 8081)
 nightly_sal = register_sal("smrtlink-bihourly", 8081)
+print "Loaded Service AccessLayers, {x}".format(x=SALS.keys())
+print pprint.pformat(SALS)
+
+
+def _jobs_by_state_gen(sal, job_states):
+    """:type sal: ServiceAccessLayer"""
+
+    states = job_states if isinstance(job_states, (tuple, list)) else [job_states]
+
+    jobs = sal.get_analysis_jobs()
+    for job in jobs:
+        sjob = _to_service_job(job)
+        if sjob.state in states:
+            yield sjob
+
+
+def get_failed_jobs(sal):
+    return sorted(_jobs_by_state_gen(sal, JobStates.FAILED), key=lambda x: x.created_at, reverse=True)
 
 
 def jobs_summary(jobs):
@@ -106,5 +143,4 @@ def to_sal_summary(sal):
 
 
 from IPython import embed
-
-embed() # this call anywhere in your program will start IPython
+embed()
