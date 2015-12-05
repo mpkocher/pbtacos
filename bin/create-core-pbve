@@ -39,9 +39,6 @@ pip install $root_sa_dir/bioinformatics/lib/python/pbcore
 pip install -r $root_sa_dir/bioinformatics/tools/pbreports/REQUIREMENTS.txt
 pip install $root_sa_dir/bioinformatics/tools/pbreports
 
-pip install -r $root_sa_dir/bioinformatics/tools/pbreports/REQUIREMENTS.txt
-pip install $root_sa_dir/bioinformatics/tools/pbreports
-
 pip install -r pbsmrtpipe/REQUIREMENTS.txt
 pip install pbsmrtpipe/
 
@@ -68,6 +65,6 @@ source /mnt/software/Modules/current/init/bash
 module load python/2.7.9
 module load gridengine/6.2u5
 # this is for runtime
-module load graphviz/2.28.0
+module load graphviz
 source test-ve/ve/bin/activate
 EOF

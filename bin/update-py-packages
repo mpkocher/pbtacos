@@ -1,2 +1,0 @@
-#!/bin/bash
-for i in $(pip freeze | tr "==" " " | awk '{print $1}'); do pip install --upgrade echo $i; done
