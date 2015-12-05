@@ -17,7 +17,8 @@ def to_shell(root_dir):
     xs = [
             "smrtcmds/bin", 
             "current/private/pacbio/pythonpkgs/GenomicConsensus/binwrap",
-            "current/private/pacbio/pythonpkgs/pbsmrtpipe/binwrap", 
+            "current/private/pacbio/pythonpkgs/pbsmrtpipe/binwrap",
+            "current/private/pacbio/pythonpkgs/pbcommand/binwrap",
             "current/private/pacbio/pythonpkgs/GenomicConsensus/binwrap",
             "current/private/pacbio/pythonpkgs/pbvalidate/binwrap",
             "current/private/pacbio/pbscala/binwrap",
