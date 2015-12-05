@@ -9,7 +9,7 @@ from fabric.context_managers import shell_env, lcd, prefix
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-BASE_BUILD_DIR = "/mnt/secondary/builds/full/3.0.0/pkg"
+BASE_BUILD_DIR = "/mnt/secondary/builds/full/mainline/pkg"
 BASE_OUTPUT_DIR = "/home/UNIXHOME/mkocher/sa3"
 CREATE_SH_EXE = 'create-sa3-setup'
 
@@ -57,7 +57,8 @@ def extract_build_to(build, root_dest_dir):
 def extract_newest_build():
     b = get_newest_build()
     log.info("Get newest build {b}".format(b=b))
-    extract_build_to(b, BASE_OUTPUT_DIR)
+    output_dir = extract_build_to(b, BASE_OUTPUT_DIR)
+    call_setup_sh(output_dir)
     return b
 
 
