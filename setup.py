@@ -47,6 +47,8 @@ setup(
     keywords='internal-tools tacos'.split(),
     packages=find_packages(),
     zip_safe=False,
+    scripts=["bin/random-fasta", "bin/fasta-stats", "bin/load-sal", 'bin/process-profiler'],
+    entry_points={'console_scripts': ['pbservice = pbcommand.services.cli:main']},
     extras_require={"pbsmrtpipe": ["pbcore", "ipython", "autopep8", "pbsmrtpipe", "pbcommand"],
                     "interactive": ['prompt_toolkit']},
     classifiers=['Development Status :: 4 - Beta',

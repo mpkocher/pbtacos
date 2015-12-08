@@ -10,18 +10,6 @@ from pbcommand.services import ServiceAccessLayer as Sal, JobTypes, JobStates
 ServiceJob = namedtuple("ServiceJob", 'id uuid name state path job_type created_at')
 
 
-def _to_service_job(d):
-    def sx(x):
-        return d[x]
-
-    def se(x):
-        return sx(x).encode('ascii', 'ignore')
-
-    def to_t(x):
-        return iso8601.parse_date(se(x))
-    return ServiceJob(sx('id'), sx('uuid'), se('name'), se('state'),
-                      se('path'), se('jobTypeId'), to_t('createdAt'))
-
 SALS = {}
 
 
@@ -47,9 +35,8 @@ def _jobs_by_state_gen(sal, job_states):
 
     jobs = sal.get_analysis_jobs()
     for job in jobs:
-        sjob = _to_service_job(job)
-        if sjob.state in states:
-            yield sjob
+        if job.state in states:
+            yield job
 
 
 def get_failed_jobs(sal):
@@ -74,8 +61,8 @@ def to_jobs_summary(jobs, header=None):
     x = outs.append
     states_counts = jobs_summary(jobs)
     x("{h} {n}".format(n=len(jobs), h=header))
-    for s, c in states_counts.iteritems():
-        x("State {s} {c}".format(c=c, s=s))
+    for state, c in states_counts.iteritems():
+        x("State {s} {c}".format(c=c, s=state))
 
     return "\n".join(outs)
 
