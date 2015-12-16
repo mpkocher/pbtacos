@@ -4,7 +4,6 @@ from __future__ import division
 
 import sys
 import logging
-import random
 
 from collections import namedtuple
 
@@ -38,8 +37,9 @@ def to_fasta_stats(fasta_file):
 
 
 def args_runner(args):
+    log.info("Fasta status with args {a}".format(a=args))
     fasta_stats = to_fasta_stats(args.fasta_file)
-    print fasta_stats
+    log.info(fasta_stats)
     return 0
 
 
