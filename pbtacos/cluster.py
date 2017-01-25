@@ -7,11 +7,13 @@ import subprocess
 from collections import OrderedDict
 from xml.etree.ElementTree import ElementTree, ParseError
 
-from fabric.api import local
-# from fabric.context_managers import shell_env, lcd, prefix
-
 
 log = logging.getLogger(__name__)
+
+
+def local(cmd):
+    return subprocess.check_call(cmd, shell=True)
+
 
 
 class SGEJob(object):
