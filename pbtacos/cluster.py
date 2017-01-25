@@ -15,7 +15,6 @@ def local(cmd):
     return subprocess.check_call(cmd, shell=True)
 
 
-
 class SGEJob(object):
 
     def __init__(self, idx, name, user, state, queue_name, slots):
@@ -125,13 +124,31 @@ def _to_qstat_command(output_file, user=None):
 def get_jobs_by_user(user_name):
     return get_jobs(user=user_name)
 
+def get_jobs_by_users(user_names):
+    return get_jobs(user=user_names)
+
+
+def _filter_jobs_by_user_or_users(jobs, user_or_users):
+    if isinstance(user_or_users, (list, tuple, set)):
+        user_names = user_or_users
+    elif isinstance(user_or_users, str):
+        user_names = [user_or_users]
+    else:
+        raise TypeError("Expected users as list of names, or a single name. Got {t}".format(t=type(user_or_users)))
+    return [j for j in jobs if j.user in user_names]
+
 
 def get_jobs(user=None):
-    """Get the current SGE jobs """
+    """Get the current SGE jobs 
+    :param: user can be provided as a list of users or a single user
+
+    if no user is provided, all sge jobs with users are returned.
+    
+    """
     f = tempfile.NamedTemporaryFile(suffix="_qstat.xml", delete=False)
     f.close()
     qstat_xml = f.name
-    cmd = _to_qstat_command(qstat_xml, user=user)
+    cmd = _to_qstat_command(qstat_xml, user="*")
 
     local(cmd)
 
@@ -144,7 +161,10 @@ def get_jobs(user=None):
     if os.path.exists(qstat_xml):
         os.remove(qstat_xml)
 
-    return sge_jobs
+    if user is None:
+        return sge_jobs
+    else:
+        return _filter_jobs_by_user_or_users(sge_jobs, user)
 
 
 def filter_jobs_by(funcs, jobs):
