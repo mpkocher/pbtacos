@@ -89,8 +89,13 @@ def __get_jobs_from_xml_node(xml_node_iter):
     for ji in xml_node_iter:
         attrs = []
         for element_name, etype in job_attrs.iteritems():
-            v = __get_data_with_type(ji, element_name, etype)
-            attrs.append(v)
+            # FIXME. This is adding some slop for optional values in the datamodel
+            try:
+                v = __get_data_with_type(ji, element_name, etype)
+                attrs.append(v)
+            except AttributeError:
+                log.warning("Failed to get attribute {}".format(element_name))
+                attrs.append(None)
         job = SGEJob(*attrs)
         sge_jobs.append(job)
 
@@ -202,15 +207,10 @@ def jobs_summary(jobs):
 
     return "\n".join(outs)
 
+# alias to make the autocomplete easier to user
+to_job_summary = jobs_summary
+
 
 def jobs_to_dataframe(jobs):
     import pandas as pd
-
-    d = []
-    attr_names = ['idx', 'nslots', 'user', 'state', 'queue_name', 'name']
-    for job in jobs:
-        x = {a: getattr(job, a) for a in attr_names}
-        d.append(x)
-
-    df = pd.DataFrame(d)
-    return df
+    return pd.DataFrame.from_dict([j.__dict__ for j in jobs])
