@@ -3,6 +3,7 @@ import os
 import logging
 import tempfile
 import subprocess
+import iso8601
 
 from collections import OrderedDict
 from xml.etree.ElementTree import ElementTree, ParseError
@@ -17,13 +18,14 @@ def local(cmd):
 
 class SGEJob(object):
 
-    def __init__(self, idx, name, user, state, queue_name, slots):
+    def __init__(self, idx, name, user, state, queue_name, slots, submitted_at):
         self.idx = idx
         self.name = name
         self.user = user
         self.state = state
         self.queue_name = queue_name
         self.nslots = slots
+        self.submitted_at = submitted_at
 
     def __repr__(self):
         _d = dict(k=self.__class__.__name__, i=self.idx, u=self.user,
@@ -81,7 +83,8 @@ def __get_jobs_from_xml_node(xml_node_iter):
                              ('JB_owner', str),
                              ('state', str),
                              ('queue_name', str),
-                             ('slots', int)])
+                             ('slots', int),
+                             ('JB_submission_time', iso8601.parse_date)])
     sge_jobs = []
     for ji in xml_node_iter:
         attrs = []
@@ -148,7 +151,7 @@ def get_jobs(user=None):
     f = tempfile.NamedTemporaryFile(suffix="_qstat.xml", delete=False)
     f.close()
     qstat_xml = f.name
-    cmd = _to_qstat_command(qstat_xml, user="*")
+    cmd = _to_qstat_command(qstat_xml, user=user)
 
     local(cmd)
 
@@ -161,10 +164,7 @@ def get_jobs(user=None):
     if os.path.exists(qstat_xml):
         os.remove(qstat_xml)
 
-    if user is None:
-        return sge_jobs
-    else:
-        return _filter_jobs_by_user_or_users(sge_jobs, user)
+    return sge_jobs
 
 
 def filter_jobs_by(funcs, jobs):
